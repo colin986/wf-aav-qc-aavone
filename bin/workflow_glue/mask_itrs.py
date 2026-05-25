@@ -149,9 +149,20 @@ def mask_itrs(transgene_plasmid_fasta, itr_locations):
     itr1_seq = ref[itr1_start_pos: itr1_end_pos].upper()
     itr2_seq = ref[itr2_start_pos: itr2_end_pos].upper()
 
-    # Identify parts of the ITR
-    itr1_mask_regions = [x + itr1_start_pos for x in get_variable_itr_regions(itr1_seq)]
-    itr2_mask_regions = [x + itr2_start_pos for x in get_variable_itr_regions(itr2_seq)]
+    # Identify parts of the ITR. If an ITR is incomplete or non-canonical (e.g. the
+    # intentionally truncated 5' ITR in AAVone-style all-in-one constructs) and the
+    # AAA/TTT hairpin motif can't be located, skip masking that ITR instead of crashing.
+    def safe_regions(itr_seq, start_pos, label):
+        try:
+            return [x + start_pos for x in get_variable_itr_regions(itr_seq)]
+        except ValueError as e:
+            logger.warning(
+                f"Could not find the AAA/TTT hairpin in {label}; "
+                f"leaving {label} UNMASKED. Reason: {e}")
+            return []
+
+    itr1_mask_regions = safe_regions(itr1_seq, itr1_start_pos, "ITR1")
+    itr2_mask_regions = safe_regions(itr2_seq, itr2_start_pos, "ITR2")
 
     logger.info(f'masking ITR1 variable regions: {itr1_mask_regions}')
     logger.info(f'masking ITR2 variable regions: {itr2_mask_regions}')
